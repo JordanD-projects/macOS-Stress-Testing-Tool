@@ -1,0 +1,2 @@
+OS Version: macOS 15.2 - Processor: Apple M1 Pro
+HTTP Queue: 3 - Jamf Cloud Queue: 3 - Log Queue: 0

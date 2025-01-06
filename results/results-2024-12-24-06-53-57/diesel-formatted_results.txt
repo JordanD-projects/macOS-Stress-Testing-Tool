@@ -1,0 +1,17 @@
+Test Name: diesel - # of runs: 5 - Protect Version 6.3.3.4
+Number of Records: 3973 - Minimum Value Recorded: 0.00 - Maximum Value Recorded: 111.30 - Mean: 75.75811729171910395167
+Description of values: 
+
+
+Average = mean (sum of all values divied by the number of values) 
+
+
+Minimum Value = the smallest recorded value in the set 
+
+
+Maximum Value = the largest recorded value in the set 
+
+
+Sum = the sum of all values recreded across all runs of the test 
+
+

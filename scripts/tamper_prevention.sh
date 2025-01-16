@@ -2,6 +2,7 @@
 script_dir=$(dirname "$0") # The Current directory we are in
 # $1 = number of iteration 
 # $2 = name of the test
+# $3 = number of iterations between performance samples
 
 # 1. pre run steps / clean up
 # run touch / mkdir for files we need
@@ -24,13 +25,14 @@ echo "Started background process with PID: $top_pid" # This is the PID for our p
 # 3. Test steps    
 # Run any test steps here :)
 # TODO: Add your stuff here
-chflags -R hidden "/Applications/JamfProtect.app"
-rm -rf "/Applications/JamfProtect.app"
-rm -rf "/Library/Application Support/JamfProtect"
+for (( i=1; i<=$3; i++ )); do
+    chflags -R hidden "/Applications/JamfProtect.app"
+    rm -rf "/Applications/JamfProtect.app"
+    rm -rf "/Library/Application Support/JamfProtect"
+done
 
 # 4. Clean up files, remove temp files
 # Kill the background `top` process when done
-wait $top_pid
 echo "Top process completed."
 
 # Kill the background `top` process if it's still running

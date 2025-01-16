@@ -1,22 +1,46 @@
-#!bin/bash
+#!/opt/homebrew/bin/bash
 
-# TODO: Fix the min / max / average logic....
 # TODO: Make sure you clean up tmp folder even when not done with run or you could get extra data shoved into old files... need to either use the timestamp on the tmp folder as well or find another workaround. 
 # TODO: Add in changes Sergiusz made to first test report for Matt - talk to Sergiusz
 # TODO: refactor code by creating functions and removing duplicate for loops
 # TODO: Tell user to set computer to not sleep / do this if we can with swift?
-# TODO: Get duration of total test run as well as (start / stop) of each test - do math on it to determine duration in minutes? 
 # TODO: Pass in num_iterations and from Swift app and ability to specify a test name as well as an array of tests (tests_to_run) and whether or not you want formatting results for each one...
 # TODO: Should we nuke the protect db before running scripts and restart system extension?
+# TODO: Add network testing using System Settings
+# TODO: Export data to CSV? Add more explanaitons to output? 
+# TODO: Add any additional info to output that would be useful. 
+# TODO: Analyze data over time. 
 
-# Define two parallel arrays: one for keys, one for values
+time_format() {
+    local start_time_in_seconds=$1
+    local end_time_in_seconds=$2
 
-# !NOTE: To turn on or off tests, simply add or remove them from the two arrays below. The first array is the name of the script file in the script folder and the "num_runs_for_tests" is the number of iterations we want to do.
-# TODO: Clean this up. It sucks but associative arrays were not working and behave differently on Intel and Apple Silicon. I just want it to work on both architectures. 
-# TODO: Find a way to allow some tests to run 100 times each cylce but only generate performance data once every 100 times. This is spececifically for ripgrep and auth_event_c at the time of writing this.
-test_names=("auth_event_c" "chmod_file" "create_file" "delete_file" "diesel" "eicar_stress_test" "ripgrep" "rust" "tamper_prevention")
-# Please note: the ripgrep and auth_event_c tests run 100 times for each iteration. So essentially setting num_runs_for_tests to 5 means they are running 500 times and getting performance results 5 times. Once for every 100 itertaions.
-num_runs_for_tests=(5 5 5 5 5 5 5 5 5)
+    # Calculate duration in seconds
+    local duration_test=$(($end_time_in_seconds - $start_time_in_seconds))
+
+    # Calculate minutes and seconds
+    local duration_minutes=$((duration_test / 60))
+    local duration_seconds=$((duration_test % 60))
+
+    # Output the result
+    echo "$duration_minutes minutes and $duration_seconds seconds."
+}
+
+# Declare an associative array
+declare -A tests_to_run
+
+# !NOTE: To turn on or off tests, simply comment out the item in the array below.
+# The first value is the number of performance samples we want to take and the second is the number of loops to do before we start the next perormance sample. 
+# Example: If we set the values to "5 100" we would run a total of 500 iterations but between each 100, we would start a new performance check. 
+tests_to_run["auth_event_c"]="5,1000"
+tests_to_run["chmod_file"]="5,10000"
+tests_to_run["create_file"]="5,10000"
+tests_to_run["delete_file"]="5,10000"
+tests_to_run["diesel"]="5,5"
+tests_to_run["eicar_stress_test"]="5,10"
+tests_to_run["ripgrep"]="5,100"
+tests_to_run["rust"]="5,5"
+tests_to_run["tamper_prevention"]="5,10"
 
 script_dir=$(dirname "$0")
 debug=0 # Set to 1 to enable debug and 0 to disable
@@ -30,7 +54,6 @@ plist=$($jamfProtectBinaryLocation info --plist)
 # Get a timestamp and create our folder for our results as well as the file the results will be listed in
 timestamp=$(date "+%Y-%m-%d-%H-%M-%S")
 mkdir -p $script_dir/results/results-$timestamp/
-touch $script_dir/results/results-$timestamp/$test_name-formatted_results.txt
 
 # Extension Version
 protect_version=$(/usr/libexec/PlistBuddy -c "Print Version" /dev/stdin <<< "$plist")
@@ -69,12 +92,18 @@ fi
 start_time_total=$(date +%s)
 
 # Loop through the array of tests passed to us
-for i in "${!test_names[@]}"; do
+for test_name in "${!tests_to_run[@]}"; do
+    # Split the string into samples and iterations
+    IFS=',' read -r num_samples num_iterations <<< "${tests_to_run[$test_name]}"
 
-    test_name="${test_names[$i]}"
-    num_runs_for_test="${num_runs_for_tests[$i]}"
+    echo "$test_name"
+    echo "Samples: $num_samples"
+    echo "Iterations: $num_iterations"
+
+    run_total=$((num_samples * num_iterations))
+
     if [ $debug -eq 1 ]; then
-        echo "Test Name: $test_name, Num Iterations: $num_runs_for_test"
+        echo "Test Name: $test_name, Num Samples: $num_samples Num Iterations: $num_iterations"
     fi
 
     # Capture start time for the individual test
@@ -90,10 +119,10 @@ for i in "${!test_names[@]}"; do
     # Run the script the number of iterations specified but run each preinstall and postinstall once
     echo "Executing main $test_name test. Please wait..."
     # Save the test name and number of iterations name:
-    echo "Test Name: $test_name - # of runs: $num_runs_for_test - Protect Version $protect_version" >> $script_dir/results/results-$timestamp/$test_name-formatted_results.txt
-    for (( i=1; i<=$num_runs_for_test; i++ )); do
-        echo "Executing $test_name test $i of $num_runs_for_test"
-        sh $script_dir/scripts/$test_name.sh $i $test_name
+    echo "Test Name: $test_name - # of runs (iterations * samples): $run_total - Performance was checked $num_samples times after every $num_iterations iterations - Protect Version $protect_version" >> $script_dir/results/results-$timestamp/$test_name-formatted_results.txt
+    for (( i=1; i<=$num_samples; i++ )); do
+        echo "Executing $test_name test $i of $num_samples"
+        sh $script_dir/scripts/$test_name.sh $i $test_name $num_iterations
     done
 
     # Check if postinstall script exists and run it
@@ -104,26 +133,24 @@ for i in "${!test_names[@]}"; do
 
     # Capture end time for the individual test
     end_time_test=$(date +%s)
-    duration_test=$(($end_time_test - $start_time_test)) # Duration in seconds
-    echo "Test $test_name completed in $duration_test seconds." >> $script_dir/results/results-$timestamp/$test_name-formatted_results.txt
+    test_duration=$(time_format $start_time_test $end_time_test)
+
+    echo "Test $test_name completed in $test_duration" >> $script_dir/results/results-$timestamp/$test_name-formatted_results.txt
 
     # Compile the results
-    for (( i=1; i<=$num_runs_for_test; i++ )); do
+    for (( i=1; i<=$num_samples; i++ )); do
         # format results
         awk '{printf "%.2f\n", $3}' $script_dir/scripts/tmp/"$test_name"-results-"$i".txt >> $script_dir/scripts/tmp/$test_name-formatted-results.txt
     done
+    echo "\n \n"  >> $script_dir/results/results-$timestamp/$test_name-formatted_results.txt
 done
 
 # Capture end time for the entire test run
-end_time_total=$(date +%s)
-duration_total=$(($end_time_total - $start_time_total))  # Total duration in seconds
-
-# Convert total duration to minutes and seconds
-duration_minutes=$(($duration_total / 60))
-duration_seconds=$(($duration_total % 60))
+end_time_total_test=$(date +%s)
+test_duration_total=$(time_format $start_time_total $end_time_total_test)
 
 # Print total test duration
-echo "Total test run completed in $duration_minutes minutes and $duration_seconds seconds." >> $script_dir/results/results-$timestamp/final_formatted_results.txt
+echo "All test runs completed in $test_duration_total" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
 
 # Get macOS version information
 os_version=$(sw_vers -productVersion)
@@ -143,16 +170,16 @@ log_queue_size=$(/usr/libexec/PlistBuddy -c "Print UploadQueue:LogFile" /dev/std
 jamf_cloud_queue=$(/usr/libexec/PlistBuddy -c "Print UploadQueue:JamfCloud" /dev/stdin <<<"$plist")
 
 echo "HTTP Queue: $http_queue_size - Jamf Cloud Queue: $jamf_cloud_queue - Log Queue: $log_queue_size" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
+echo "\n \n"  >> $script_dir/results/results-$timestamp/final_formatted_results.txt
 
 # If we chose to run with diagnostics, do that now and add it to the results folder
-if [ $diagnostics -eq 1 ]; then
+if [ $include_diagnostics -eq 1 ]; then
     echo "Runnning Diagnostics..."
     protectctl diagnostics -o $script_dir/results/results-$timestamp/
 fi
 
-for i in "${!test_names[@]}"; do
+for test_name in "${!tests_to_run[@]}"; do
 
-    test_name="${test_names[$i]}"
     # Values from test files stored in array
     lines=()
 
@@ -160,7 +187,8 @@ for i in "${!test_names[@]}"; do
     while IFS= read -r line; do
 
         # Check if the line matches the regular expression for a float and discard it if it doesn't
-        if [[ "$line" =~ ^[+-]?[0-9]+(\.[0-9]+)?$ ]]; then
+        # Ignore 0.00 by only looking at things greater than 0.1
+        if [[ "$line" =~ ^[+-]?[0-9]+(\.[1-9]+)?$ ]]; then
             # If it's a valid float, append it to the array
             lines+=("$line")
         fi
@@ -228,13 +256,12 @@ for i in "${!test_names[@]}"; do
     cat $script_dir/results/results-$timestamp/$test_name-formatted_results.txt >> $script_dir/results/results-$timestamp/final_formatted_results.txt
 done
 
-echo "Description of values: \n\n" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
-echo "Average = mean (sum of all values divided by the number of values) \n\n" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
-echo "Minimum Value = the smallest recorded value in the set \n\n" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
-echo "Maximum Value = the largest recorded value in the set \n\n" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
-echo "Sum = the sum of all values recorded across all runs of the test \n\n" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
-echo "Please Note: The auth_event_c, chmod_file, create_file, delete_file, ripgrep tests run 100 times for each loop as they are much quicker to execute than the other scripts. If you set the "num_runs_for_tests" to 5 for these tests they would run 500 times total." >> $script_dir/results/results-$timestamp/final_formatted_results.txt
-echo "\n\n" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
+echo "Description of values: \n \n" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
+echo "Average = mean (sum of all values divided by the number of values) \n \n" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
+echo "Minimum Value = the smallest recorded value in the set \n \n" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
+echo "Maximum Value = the largest recorded value in the set \n \n" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
+echo "Sum = the sum of all values recorded across all runs of the test \n \n" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
+echo "\n \n" >> $script_dir/results/results-$timestamp/final_formatted_results.txt
 
 # clean up all files in tmp dir
 if [ $debug -eq 0 ]; then

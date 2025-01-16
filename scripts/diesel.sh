@@ -2,6 +2,7 @@
 script_dir=$(dirname "$0")
 # $1 = number of iterations
 # $2 = name of the test
+# $3 = number of iterations between performance samples
 
 # 1. Pre-run steps / clean up
 # run touch / mkdir for files we need
@@ -22,17 +23,18 @@ top_pid=$!
 echo "Started background process with PID: $top_pid"
 
 # 3. Test steps: Downloads diesel from GitHub, enters the directory, and runs cargo check
-git clone https://github.com/diesel-rs/diesel "$tmp_dir"
-if [ $? -eq 0 ]; then
-    sudo cargo check --manifest-path "${tmp_dir}/Cargo.toml" --features "128-column-tables"
-else
-    echo "Git clone failed"
-    exit 1
-fi
+for (( i=1; i<=$3; i++ )); do
+    git clone https://github.com/diesel-rs/diesel "$tmp_dir"
+    if [ $? -eq 0 ]; then
+        sudo cargo check --manifest-path "${tmp_dir}/Cargo.toml" --features "128-column-tables"
+    else
+        echo "Git clone failed"
+        exit 1
+    fi
+done
 
 # 4. Clean up files, remove temp files
 # Wait for the background `top` process to finish
-wait $top_pid
 echo "Top process completed."
 
 # Kill the background `top` process if it's still running

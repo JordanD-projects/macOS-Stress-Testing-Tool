@@ -1,7 +1,8 @@
 #!/bin/bash
 script_dir=$(dirname "$0")
-# $1 = number of iteration 
+# $1 = number of performance samples 
 # $2 = name of the test
+# $3 = number of iterations between performance samples
 
 # 1. pre run steps / clean up
 # run touch / mkdir for files we need
@@ -25,7 +26,7 @@ sleep 5
 
 # 3. Test steps    
 # Run any test steps here :)
-for (( i=1; i<=100; i++ )); do
+for (( i=1; i<=$3; i++ )); do
     # Copy the .c file
     cp "$src_file" "$tmp_dir/auth_event_c_file_${i}.c"
 
@@ -34,7 +35,6 @@ for (( i=1; i<=100; i++ )); do
 
     # Execute the compiled file
     "${tmp_dir}/auth_event_c_file_${i}.out" &
-    sleep 2
 done
 
 # 4. Clean up files, remove temp files

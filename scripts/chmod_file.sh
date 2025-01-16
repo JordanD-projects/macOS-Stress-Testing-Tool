@@ -2,11 +2,13 @@
 script_dir=$(dirname "$0") # The Current directory we are in
 # $1 = number of iteration 
 # $2 = name of the test
+# $3 = number of iterations between performance samples
 
 # 1. pre run steps / clean up
 # run touch / mkdir for files we need
 tmp_dir="$script_dir/tmp/dependencies/$2/"
 tmp_results="$script_dir/tmp/$2-results-$1.txt"
+timestamp=$(date "+%Y-%m-%d-%H-%M-%S")
 
 # Remove existing tmp_dir and recreate it
 if [ -d "$tmp_dir" ]; then
@@ -23,15 +25,14 @@ echo "Started background process with PID: $top_pid" # This is the PID for our p
 
 # 3. Test steps    
 # Run any test steps here :)
-for (( i=1; i<=100; i++ )); do
+for (( i=1; i<=$3; i++ )); do
     touch "$tmp_dir/chmod_file_${i}.txt" # Create a file
-    cat "$script_dir/lorem_ipsum.txt" > "$tmp_dir/chmod_file_${i}.txt" # Add Lorem Ipsum to it
+    cat "$script_dir/lorem_ipsum.txt" > "$tmp_dir/chmod_file_${timestamp}_${i}.txt" # Add Lorem Ipsum to it
     chmod 777 "$tmp_dir/chmod_file_${i}.txt" # Attempt to change permissions on it
 done
 
 # 4. Clean up files, remove temp files
 # Kill the background `top` process when done
-wait $top_pid
 echo "Top process completed."
 
 # Kill the background `top` process if it's still running

@@ -1,7 +1,8 @@
 #!/bin/bash
 script_dir=$(dirname "$0") # The Current directory we are in
-# $1 = number of iteration 
+# $1 = number of iterations
 # $2 = name of the test
+# $3 = number of iterations between performance samples
 
 # 1. pre run steps / clean up
 # run touch / mkdir for files we need
@@ -23,11 +24,13 @@ echo "Started background process with PID: $top_pid" # This is the PID for our p
 
 # 3. Test steps    
 # Run any test steps here :)
-# TODO: Add your stuff here
+# This loop will run as many times as $3 is defined above before starting a new iteration. 
+for (( i=1; i<=$3; i++ )); do
+    # TODO: Add your stuff here
+done
 
 # 4. Clean up files, remove temp files
 # Kill the background `top` process when done
-wait $top_pid
 echo "Top process completed."
 
 # Kill the background `top` process if it's still running
